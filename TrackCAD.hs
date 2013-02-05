@@ -1,7 +1,9 @@
 module Main (main) where
 
-import qualified SVG as SVG
 import Text.Printf
+
+import Optimize
+import qualified SVG as SVG
 
 data Point = Point Double Double
 data Line  = Line  Point  Point
@@ -50,7 +52,7 @@ apply a b = case a of
   Move x y a -> move x y $ apply a b
   Rotate ang a -> rotate ang $ apply a b
 
-segment :: Wheel -> Wheel -> Line
+segment :: Wheel -> Wheel -> (Double, Line, Double)
 segment w1@(Wheel r1 _) w2@(Wheel r2 _)
   | rB == rS  = rev $ Line (Point 0 (-rB)) (Point a (-rB))
   | r1Bigger  = rev $ Line (Point (rB * cos phi) ((-rB) * sin phi)) (Point (a + rS * cos phi) ((-rS) * sin phi))
@@ -80,7 +82,7 @@ segments a = f a
     a : b : c -> segment a b : f (b : c)
 
 beltLength :: [Wheel] -> Double
-beltLength wheels = sum $ map lineLength segs  --XXX Need to add arc lengths.
+beltLength wheels = sum $ map lineLength segs  -- XXX Need to add arc lengths.
   where
   segs = segments wheels
 
@@ -111,10 +113,10 @@ data LoaderConfig = LoaderConfig
   , lcDriveBack :: Double
   }
 
-loaderConfig = LoaderConfig 
+loaderConfig a = LoaderConfig 
   { lcGroundWheelsDown = wheelRadBig - wheelRadSmall
   , lcWheelBase        = 5
-  , lcDriveUp          = 1.5
+  , lcDriveUp          = a
   , lcDriveBack        = 0.40
   }
 
@@ -126,11 +128,16 @@ loaderWheels lc =
   , Wheel wheelRadBig $ Point (lcWheelBase lc + lcDriveBack lc) (lcDriveUp lc)
   ]
 
+f :: Double -> Double
+f a = abs $ 13 - (beltLength $ loaderWheels $ loaderConfig a)
+
 main :: IO ()
 main = do
   writeFile "test.svg" $ SVG.render $ SVG.place 20 $ SVG.scale 70 $
     map wheelToSVG wheels ++ map lineToSVG (segments wheels)
   printf "Belt length: %.2f\n" $ beltLength wheels
+  printf "DriveUp param: %.2f\n" a
   where
-  wheels = loaderWheels loaderConfig
+  a = minimize f (1.5, 4.5) 0.00001
+  wheels = loaderWheels $ loaderConfig a
 
